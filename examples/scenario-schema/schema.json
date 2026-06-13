@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LLM-generated E2E test scenario",
+  "description": "Schema for having an LLM draft E2E test scenarios from product docs (NOT from source code). At generation time status is 'draft'. A human then verifies each scenario against the real code and sets status to 'approved' or 'rejected'. A rejected scenario MUST carry a reject_reason with a code reference. The rejection path is the point: the LLM is a fast first draft, the engineer's verification is the value.",
+  "type": "object",
+  "properties": {
+    "scenarios": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "pattern": "^S-\\d{3}$" },
+          "title": { "type": "string", "minLength": 10 },
+          "area": {
+            "type": "string",
+            "enum": ["auth", "cart", "checkout", "payment", "promotion", "admin"]
+          },
+          "priority": { "type": "string", "enum": ["P0", "P1", "P2"] },
+          "preconditions": { "type": "array", "items": { "type": "string" } },
+          "steps": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+          "expected": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+          "source": {
+            "type": "object",
+            "properties": {
+              "doc": { "type": "string" },
+              "section": { "type": "string" }
+            },
+            "required": ["doc", "section"],
+            "additionalProperties": false
+          },
+          "status": {
+            "type": "string",
+            "enum": ["draft", "approved", "rejected", "automated"]
+          },
+          "reject_reason": {
+            "type": "string",
+            "description": "Required when status=rejected: evidence-based reason citing real code (file:line)."
+          }
+        },
+        "required": ["id", "title", "area", "priority", "preconditions", "steps", "expected", "source", "status"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["scenarios"],
+  "additionalProperties": false
+}

@@ -1,0 +1,76 @@
+name: E2E Tests (Playwright + local Supabase)
+
+# PATTERN: a non-blocking E2E workflow that boots a real Supabase stack in CI,
+# seeds it, builds the app, and runs Playwright on every push. Production is never
+# contacted; the database is a throwaway container on the runner.
+#
+# Two hard-won details:
+#  - Pin Node to the version your production build uses, not the runner default.
+#  - Retry the stack startup. `supabase start` pulls images from Docker Hub, and
+#    shared CI runner IPs intermittently hit the anonymous pull rate limit (429).
+#
+# Phase 1 (here): non-blocking. It reports, it does not gate deploys, so a flaky
+# early suite cannot block a real hotfix. Phase 2: once stable, have your deploy
+# workflow consume this via `uses:` + `needs:` so a red suite blocks the deploy.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  workflow_call: # so a deploy workflow can gate on it later
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20" # match your production build runtime
+          cache: "npm"
+
+      - run: npm ci --no-fund
+
+      - name: Start local Supabase stack (with retry)
+        run: |
+          for attempt in 1 2 3; do
+            if npx supabase start -x studio,inbucket,imgproxy,edge-runtime,logflare,vector; then
+              exit 0
+            fi
+            echo "::warning::supabase start attempt $attempt failed (likely Docker Hub rate limit)"
+            npx supabase stop --no-backup || true
+            sleep $((attempt * 30))
+          done
+          echo "::error::supabase start failed after 3 attempts"
+          exit 1
+
+      - run: npx supabase db reset
+
+      - name: Seed test data
+        run: node e2e/setup/seed.mjs
+
+      - name: Build
+        run: npm run build
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright suite
+        run: npx playwright test
+
+      - name: Upload report and traces
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
+          if-no-files-found: ignore
