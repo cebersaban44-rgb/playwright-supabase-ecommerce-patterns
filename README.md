@@ -41,10 +41,12 @@ A JSON schema for having an LLM draft test scenarios from product docs, with a s
 forces human review. The point of the schema is the rejection path: every scenario must be verified
 against real code before it becomes a test.
 
-### 5. CI workflow (`.github/workflows/e2e-ci.yml`)
+### 5. CI workflow (`examples/ci-workflow/e2e-ci.yml`)
 A non-blocking GitHub Actions workflow that boots the local Supabase stack, seeds it, builds the app,
 and runs the suite on every push. Includes a retry around stack startup (Docker Hub rate limits are
-intermittent) and the Node version pin that matters.
+intermittent) and the Node version pin that matters. It lives under `examples/` on purpose: this is a
+reference file to copy into your own project's `.github/workflows/`, not a workflow for this
+patterns-only repo (there is no app here to run).
 
 ## Why these exist
 
